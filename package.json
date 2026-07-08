@@ -1,0 +1,28 @@
+{
+  "name": "kaloriya",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspace @kaloriya/shared && npm run build --workspace @kaloriya/web",
+    "dev": "npm run dev --workspace @kaloriya/web",
+    "dev:web": "npm run dev --workspace @kaloriya/web",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.32.1",
+    "@kaloriya/shared": "*",
+    "@supabase/supabase-js": "2.46.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.3",
+    "typescript": "5.6.3"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

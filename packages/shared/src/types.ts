@@ -1,0 +1,143 @@
+export type Sex = "male" | "female";
+
+export type ActivityLevel =
+  | "sedentary"
+  | "light"
+  | "moderate"
+  | "active"
+  | "very_active";
+
+export type Goal = "lose" | "maintain" | "gain";
+
+export type GoalPace = "slow" | "normal" | "fast";
+
+export type DietType = "regular" | "halal" | "vegetarian" | "vegan";
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
+export type SubscriptionTier = "free" | "basic" | "plus" | "pro";
+
+export type SubscriptionStatus =
+  | "none"
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "expired";
+
+export interface Macros {
+  kcal: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  sugar_g?: number;
+  salt_g?: number;
+}
+
+export interface Profile {
+  name: string;
+  sex: Sex;
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  goal: Goal;
+  goalPace: GoalPace;
+  activity: ActivityLevel;
+  dietType: DietType;
+  allergies: string[];
+  targetWeightKg?: number;
+}
+
+export interface DerivedTargets {
+  bmr: number;
+  tdee: number;
+  dailyKcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  waterMl: number;
+  bmi: number;
+  isSafeGoal: boolean;
+  guardrailNote?: string;
+}
+
+export interface FoodEntry {
+  id: string;
+  name: string;
+  meal: MealType;
+  portionPct: number;
+  macros: Macros;
+  photoUri?: string;
+  confidence?: number;
+  createdAt: string;
+  source: "ai" | "manual";
+}
+
+export interface WaterEntry {
+  id: string;
+  ml: number;
+  createdAt: string;
+}
+
+export interface WorkoutEntry {
+  id: string;
+  exerciseIds: string[];
+  planId?: string;
+  kcalBurned: number;
+  durationMin: number;
+  createdAt: string;
+}
+
+export interface WeightEntry {
+  id: string;
+  weightKg: number;
+  createdAt: string;
+}
+
+export interface DayLog {
+  date: string;
+  foods: FoodEntry[];
+  water: WaterEntry[];
+  workouts: WorkoutEntry[];
+  sleepHours?: number;
+}
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  createdAt: string;
+  subscription: {
+    tier: SubscriptionTier;
+    status: SubscriptionStatus;
+    trialEndsAt?: string;
+    currentPeriodEnd?: string;
+  };
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn: number;
+}
+
+export interface AiAnalyzedItem {
+  name: string;
+  macros: Macros;
+  portionPctSuggested: number;
+  reason?: string;
+}
+
+export interface AiFoodAnalysis {
+  items: AiAnalyzedItem[];
+  totals: Macros;
+  confidence: number;
+  noteUz?: string;
+}
+
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
