@@ -50,7 +50,17 @@ body {
     rgba(255, 255, 255, 0.02) 100%
   );
   background-size: 200% 100%;
-  @apply animate-shimmer rounded-xl;
+  border-radius: 0.75rem;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar {
