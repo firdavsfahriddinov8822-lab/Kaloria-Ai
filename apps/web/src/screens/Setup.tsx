@@ -17,17 +17,18 @@ import { shouldOfferPinSetup } from "@/lib/security";
 export default function Setup() {
   const nav = useNavigate();
   const { t } = useI18n();
-  const { setProfile, toast } = useApp();
-  const [name, setName] = useState("");
-  const [sex, setSex] = useState<Sex>("male");
-  const [age, setAge] = useState(28);
-  const [heightCm, setHeightCm] = useState(175);
-  const [weightKg, setWeightKg] = useState(72);
-  const [goal, setGoal] = useState<Goal>("lose");
-  const [goalPace, setGoalPace] = useState<GoalPace>("normal");
-  const [activity, setActivity] = useState<ActivityLevel>("moderate");
-  const [dietType, setDietType] = useState<DietType>("halal");
-  const [allergiesRaw, setAllergiesRaw] = useState("");
+  const { state, setProfile, toast } = useApp();
+  const existing = state.profile;
+  const [name, setName] = useState(existing?.name ?? "");
+  const [sex, setSex] = useState<Sex>(existing?.sex ?? "male");
+  const [age, setAge] = useState(existing?.age ?? 28);
+  const [heightCm, setHeightCm] = useState(existing?.heightCm ?? 175);
+  const [weightKg, setWeightKg] = useState(existing?.weightKg ?? 72);
+  const [goal, setGoal] = useState<Goal>(existing?.goal ?? "lose");
+  const [goalPace, setGoalPace] = useState<GoalPace>(existing?.goalPace ?? "normal");
+  const [activity, setActivity] = useState<ActivityLevel>(existing?.activity ?? "moderate");
+  const [dietType, setDietType] = useState<DietType>(existing?.dietType ?? "halal");
+  const [allergiesRaw, setAllergiesRaw] = useState(existing?.allergies.join(", ") ?? "");
 
   const preview = useMemo(
     () =>
