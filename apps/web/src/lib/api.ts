@@ -1,4 +1,11 @@
-import type { AiFoodAnalysis, AuthUser } from "@kaloriya/shared";
+import type {
+  AiDailyWorkout,
+  AiFoodAnalysis,
+  AuthUser,
+  DerivedTargets,
+  Profile,
+  WorkoutEntry,
+} from "@kaloriya/shared";
 import { supabase, supabaseConfigured } from "./supabase";
 
 export interface ApiResult<T> {
@@ -127,6 +134,7 @@ export const api = {
   async analyzeFood(payload: {
     imageBase64: string;
     noteUz?: string;
+    locale?: string;
   }): Promise<ApiResult<AiFoodAnalysis>> {
     try {
       const res = await authedFetch("/api/ai/analyze-food", {
@@ -135,6 +143,36 @@ export const api = {
       });
       const json = (await res.json().catch(() => ({}))) as {
         data?: AiFoodAnalysis;
+        error?: { code: string; message: string };
+      };
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: json.error ?? { code: "http_" + res.status, message: res.statusText },
+        };
+      }
+      return { ok: true, data: json.data };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "network error";
+      return { ok: false, error: { code: "network", message } };
+    }
+  },
+
+  async dailyWorkout(payload: {
+    profile: Profile;
+    targets: DerivedTargets;
+    date: string;
+    environment?: "home" | "gym" | "outdoor";
+    recentWorkouts?: WorkoutEntry[];
+    locale?: string;
+  }): Promise<ApiResult<AiDailyWorkout>> {
+    try {
+      const res = await authedFetch("/api/ai/daily-workout", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: AiDailyWorkout;
         error?: { code: string; message: string };
       };
       if (!res.ok) {

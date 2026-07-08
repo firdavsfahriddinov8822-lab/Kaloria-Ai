@@ -1,7 +1,6 @@
 import type { Plugin, ViteDevServer } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 interface HandlerReq {
   method?: string;
@@ -66,8 +65,11 @@ export function devApiPlugin(apiRootAbs: string): Plugin {
         const pathname = url.split("?")[0]!.replace(/^\/api\//, "");
         const filePath = path.join(apiRootAbs, pathname + ".ts");
         try {
-          const modUrl = pathToFileURL(filePath).href + `?t=${Date.now()}`;
-          const mod = await server.ssrLoadModule(modUrl);
+          // Vite ssrLoadModule wants a POSIX-style absolute path; on Windows
+          // pathToFileURL encodes non-ASCII path segments (Cyrillic dirs) in
+          // a way Vite's resolver rejects, so we hand it the raw path.
+          const specifier = filePath.replace(/\\/g, "/");
+          const mod = await server.ssrLoadModule(specifier);
           const handler = (mod as { default?: (req: HandlerReq, res: HandlerRes) => Promise<void> | void })
             .default;
           if (typeof handler !== "function") {

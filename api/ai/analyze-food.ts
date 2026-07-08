@@ -14,39 +14,97 @@ interface VercelRes {
   end: () => void;
 }
 
-const SYSTEM_PROMPT = `Sen o'zbek tilida javob beradigan ovqatlanish tahlilchisisan.
-Foydalanuvchi istalgan rasmni yuborishi mumkin. Sen JSON qaytarishing kerak.
+type Locale = "uz" | "ru" | "en";
 
-Agar rasm OVQAT emas (odam, hayvon, uy jihozi, ekran, hujjat, tabiat va h.k.):
+const LOCALE_NAME: Record<Locale, string> = {
+  uz: "o'zbek",
+  ru: "русском",
+  en: "English",
+};
+
+function systemPrompt(locale: Locale): string {
+  const lang = LOCALE_NAME[locale];
+  return `You are a professional certified nutritionist and food label analyst.
+The user sends any image. You visually identify the food(s), brand (if a label is clearly visible), weight in grams, and full nutrition.
+
+RESPOND WITH JSON ONLY — no prose, no code fences.
+
+If the image is NOT food or drink (a person, animal, screen, document, landscape, random object):
 {
   "isFood": false,
   "items": [],
-  "totals": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 },
-  "confidence": 0.0,
-  "notFoodReason": "Bir jumlalik izoh: rasmda nima ko'rinyapti (o'zbekcha)."
+  "totals": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0 },
+  "confidence": 0,
+  "notFoodReason": "one sentence in ${lang} describing what is in the image"
 }
 
-Agar rasm OVQAT bo'lsa:
+Otherwise:
 {
   "isFood": true,
-  "items": [{ "name": "...", "macros": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 }, "portionPctSuggested": 100, "reason": "..." }],
+  "items": [
+    {
+      "name": "specific dish/product name in ${lang} (e.g. 'Oreo Original biscuit', 'President saryog'i')",
+      "brand": "exact brand ONLY if a label is clearly visible; otherwise omit or null. NEVER invent a brand.",
+      "estimatedGrams": 150,
+      "macros": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 },
+      "micros": {
+        "fiber_g": null,
+        "vitamin_a_mcg": null,
+        "vitamin_c_mg": null,
+        "vitamin_d_mcg": null,
+        "vitamin_b12_mcg": null,
+        "iron_mg": null,
+        "calcium_mg": null,
+        "potassium_mg": null,
+        "sodium_mg": null
+      },
+      "portionPctSuggested": 100,
+      "reason": "one short sentence in ${lang} explaining why this portion size is right for a general adult"
+    }
+  ],
   "totals": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 },
-  "confidence": 0.0,
-  "noteUz": "Foydalanuvchiga bir jumlalik maslahat, o'zbek tilida."
+  "totalGrams": 150,
+  "micros": { same fields as item micros, summed across items },
+  "confidence": 0.85,
+  "note": "one sentence of doctor-style advice in ${lang} (not medical prescription, just guidance)"
 }
 
-Faqat JSON qaytar. Boshqa hech qanday matn qo'shma.`;
+RULES:
+- Weights use realistic visual references (finger widths, plate size, spoon volume).
+- macros/micros are for the FULL estimatedGrams shown, not per 100g.
+- Use USDA/EU nutrition label averages for the identified food.
+- If a micronutrient is unknown, use null. Do NOT invent values.
+- Brand: only if a label is clearly readable. Otherwise omit.
+- All human-readable text (name, brand hint, reason, note, notFoodReason) must be in ${lang}.
+- If multiple food items are visible, list them separately in items[] and sum in totals/micros.
+`;
+}
 
-function readBody(body: unknown): { imageBase64?: string; noteUz?: string } {
-  if (body && typeof body === "object") return body as { imageBase64?: string; noteUz?: string };
+function readBody(body: unknown): {
+  imageBase64?: string;
+  noteUz?: string;
+  locale?: string;
+} {
+  if (body && typeof body === "object") {
+    return body as { imageBase64?: string; noteUz?: string; locale?: string };
+  }
   if (typeof body === "string") {
     try {
-      return JSON.parse(body) as { imageBase64?: string; noteUz?: string };
+      return JSON.parse(body) as {
+        imageBase64?: string;
+        noteUz?: string;
+        locale?: string;
+      };
     } catch {
       return {};
     }
   }
   return {};
+}
+
+function normalizeLocale(raw: string | undefined): Locale {
+  if (raw === "ru" || raw === "en") return raw;
+  return "uz";
 }
 
 function stubAnalysis(): AiFoodAnalysis {
@@ -63,25 +121,40 @@ function stubAnalysis(): AiFoodAnalysis {
     items: [
       {
         name: "Namuna ovqat",
+        estimatedGrams: 250,
         macros,
         portionPctSuggested: 100,
         reason: "AI kaliti sozlanmagan — namuna qiymatlar.",
       },
     ],
     totals: macros,
+    totalGrams: 250,
     confidence: 0.4,
+    note: "AI kaliti sozlanmagan. Vercel'da ANTHROPIC_API_KEY ni qo'shing.",
     noteUz: "AI kaliti sozlanmagan. Vercel'da ANTHROPIC_API_KEY ni qo'shing.",
   };
 }
 
 function normalizeAnalysis(parsed: unknown): AiFoodAnalysis {
   const p = (parsed ?? {}) as Partial<AiFoodAnalysis>;
+  const items = Array.isArray(p.items) ? p.items : [];
   return {
-    isFood: p.isFood ?? true,
-    items: Array.isArray(p.items) ? p.items : [],
+    isFood: p.isFood ?? items.length > 0,
+    items: items.map((it) => ({
+      name: it.name ?? "?",
+      brand: it.brand ?? undefined,
+      estimatedGrams: typeof it.estimatedGrams === "number" ? it.estimatedGrams : 0,
+      macros: it.macros ?? { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
+      micros: it.micros ?? undefined,
+      portionPctSuggested: it.portionPctSuggested ?? 100,
+      reason: it.reason,
+    })),
     totals: p.totals ?? { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
+    totalGrams: p.totalGrams,
+    micros: p.micros,
     confidence: typeof p.confidence === "number" ? p.confidence : 0,
-    noteUz: p.noteUz,
+    note: p.note ?? p.noteUz,
+    noteUz: p.noteUz ?? p.note,
     notFoodReason: p.notFoodReason,
   };
 }
@@ -92,6 +165,14 @@ function extractJson(text: string): string {
   const end = s.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("model returned no JSON");
   return s.slice(start, end + 1);
+}
+
+function detectMediaType(base64: string): "image/jpeg" | "image/png" | "image/webp" | "image/gif" {
+  if (base64.startsWith("/9j/")) return "image/jpeg";
+  if (base64.startsWith("iVBORw0")) return "image/png";
+  if (base64.startsWith("UklGR")) return "image/webp";
+  if (base64.startsWith("R0lGOD")) return "image/gif";
+  return "image/jpeg";
 }
 
 export default async function handler(req: VercelReq, res: VercelRes): Promise<void> {
@@ -109,7 +190,7 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
     return;
   }
 
-  const { imageBase64, noteUz } = readBody(req.body);
+  const { imageBase64, noteUz, locale } = readBody(req.body);
   if (!imageBase64) {
     res.status(400).json({
       error: { code: "invalid_body", message: "imageBase64 talab qilinadi" },
@@ -117,6 +198,7 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
     return;
   }
 
+  const loc = normalizeLocale(locale);
   const anthropic = getAnthropic();
   if (!anthropic) {
     res.status(200).json({ data: stubAnalysis() });
@@ -126,8 +208,8 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
   try {
     const msg = await anthropic.messages.create({
       model: anthropicModel(),
-      max_tokens: 1200,
-      system: SYSTEM_PROMPT,
+      max_tokens: 2000,
+      system: systemPrompt(loc),
       messages: [
         {
           role: "user",
@@ -136,15 +218,15 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
               type: "image",
               source: {
                 type: "base64",
-                media_type: "image/jpeg",
+                media_type: detectMediaType(imageBase64),
                 data: imageBase64,
               },
             },
             {
               type: "text",
               text: noteUz
-                ? `Foydalanuvchi izohi: ${noteUz}. Rasmni tahlil qil.`
-                : "Rasmni tahlil qil.",
+                ? `User hint: ${noteUz}. Analyze the image now and return the JSON.`
+                : "Analyze the image now and return the JSON.",
             },
           ],
         },

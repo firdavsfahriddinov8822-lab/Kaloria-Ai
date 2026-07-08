@@ -122,9 +122,24 @@ export interface AuthTokens {
   expiresIn: number;
 }
 
+export interface FoodMicros {
+  fiber_g?: number;
+  vitamin_a_mcg?: number;
+  vitamin_c_mg?: number;
+  vitamin_d_mcg?: number;
+  vitamin_b12_mcg?: number;
+  iron_mg?: number;
+  calcium_mg?: number;
+  potassium_mg?: number;
+  sodium_mg?: number;
+}
+
 export interface AiAnalyzedItem {
   name: string;
+  brand?: string;
+  estimatedGrams: number;
   macros: Macros;
+  micros?: FoodMicros;
   portionPctSuggested: number;
   reason?: string;
 }
@@ -133,9 +148,37 @@ export interface AiFoodAnalysis {
   isFood: boolean;
   items: AiAnalyzedItem[];
   totals: Macros;
+  totalGrams?: number;
+  micros?: FoodMicros;
   confidence: number;
+  note?: string;
   noteUz?: string;
   notFoodReason?: string;
+}
+
+export type WorkoutIntensity = "easy" | "moderate" | "hard";
+
+export interface AiWorkoutExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  restSec: number;
+  targetMuscle?: string;
+  notes?: string;
+  equipment?: string;
+}
+
+export interface AiDailyWorkout {
+  date: string;
+  focus: string;
+  warmupMin: number;
+  cooldownMin: number;
+  totalMin: number;
+  totalKcal: number;
+  intensity: WorkoutIntensity;
+  exercises: AiWorkoutExercise[];
+  doctorNote?: string;
+  reminders?: string[];
 }
 
 export interface ApiError {

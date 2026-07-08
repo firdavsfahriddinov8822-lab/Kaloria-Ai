@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AiFoodAnalysis, MealType } from "@kaloriya/shared";
+import type { AiFoodAnalysis, FoodMicros, MealType } from "@kaloriya/shared";
 import { Btn, Card, Field, Segmented } from "@/components/ui";
 import { analyzeFoodPhoto } from "@/lib/ai";
 import { useI18n, type TranslationKey } from "@/i18n";
@@ -35,9 +35,36 @@ function MacroChip({
   );
 }
 
+function VitaminRow({ label, value, unit }: { label: string; value: number; unit: string }) {
+  return (
+    <li className="flex justify-between text-sm">
+      <span className="text-dim">{label}</span>
+      <span className="tnum">
+        {Math.round(value * 10) / 10} <span className="text-dim">{unit}</span>
+      </span>
+    </li>
+  );
+}
+
+const MICRO_LABELS: {
+  key: keyof FoodMicros;
+  labelKey: TranslationKey;
+  unit: "g" | "mg" | "mcg";
+}[] = [
+  { key: "fiber_g", labelKey: "nutr_fiber", unit: "g" },
+  { key: "vitamin_a_mcg", labelKey: "nutr_vit_a", unit: "mcg" },
+  { key: "vitamin_c_mg", labelKey: "nutr_vit_c", unit: "mg" },
+  { key: "vitamin_d_mcg", labelKey: "nutr_vit_d", unit: "mcg" },
+  { key: "vitamin_b12_mcg", labelKey: "nutr_vit_b12", unit: "mcg" },
+  { key: "iron_mg", labelKey: "nutr_iron", unit: "mg" },
+  { key: "calcium_mg", labelKey: "nutr_calcium", unit: "mg" },
+  { key: "potassium_mg", labelKey: "nutr_potassium", unit: "mg" },
+  { key: "sodium_mg", labelKey: "nutr_sodium", unit: "mg" },
+];
+
 export default function AddFood() {
   const nav = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { addFood, toast } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const [meal, setMeal] = useState<MealType>("lunch");
@@ -64,7 +91,20 @@ export default function AddFood() {
       carbs_g: m.carbs_g * f,
       sugar_g: (m.sugar_g ?? 0) * f,
       salt_g: (m.salt_g ?? 0) * f,
+      grams: (analysis.totalGrams ?? 0) * f,
     };
+  }, [analysis, portion]);
+
+  const scaledMicros = useMemo(() => {
+    if (!analysis?.micros) return null;
+    const f = portion / 100;
+    const src = analysis.micros;
+    const out: FoodMicros = {};
+    for (const { key } of MICRO_LABELS) {
+      const v = src[key];
+      if (typeof v === "number" && v > 0) out[key] = v * f;
+    }
+    return Object.keys(out).length > 0 ? out : null;
   }, [analysis, portion]);
 
   async function onPick(file: File) {
@@ -79,7 +119,7 @@ export default function AddFood() {
     setAnalysis(undefined);
     const base64 = dataUrl.split(",")[1] ?? "";
     try {
-      const res = await analyzeFoodPhoto(base64);
+      const res = await analyzeFoodPhoto(base64, { locale });
       if (!res.isFood) {
         const reason = res.notFoodReason ? ` (${res.notFoodReason})` : "";
         toast(t("addfood_not_food") + reason, "warn");
@@ -95,9 +135,10 @@ export default function AddFood() {
 
   function save() {
     if (!analysis) return;
+    const firstItem = analysis.items[0];
     addFood({
       id: crypto.randomUUID(),
-      name: analysis.items[0]?.name ?? t("addfood_result"),
+      name: firstItem?.name ?? t("addfood_result"),
       meal,
       portionPct: portion,
       macros: analysis.totals,
@@ -109,6 +150,8 @@ export default function AddFood() {
     toast(t("addfood_added"), "success");
     nav("/food");
   }
+
+  const displayNote = analysis?.note ?? analysis?.noteUz;
 
   return (
     <div className="p-4 space-y-4">
@@ -156,9 +199,25 @@ export default function AddFood() {
         <>
           <Card className="space-y-3">
             <div className="flex justify-between items-baseline">
-              <div className="font-semibold">{t("addfood_result")}</div>
-              <div className="text-xs text-dim">
-                {t("addfood_confidence")}: {Math.round(analysis.confidence * 100)}%
+              <div>
+                <div className="font-semibold">
+                  {analysis.items[0]?.name ?? t("addfood_result")}
+                </div>
+                {analysis.items[0]?.brand && (
+                  <div className="text-dim text-xs">
+                    {t("addfood_brand")}: {analysis.items[0].brand}
+                  </div>
+                )}
+              </div>
+              <div className="text-xs text-dim text-right">
+                <div>
+                  {t("addfood_confidence")}: {Math.round(analysis.confidence * 100)}%
+                </div>
+                {scaled.grams > 0 && (
+                  <div className="tnum">
+                    ≈ {Math.round(scaled.grams)} {t("unit_g")}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -204,14 +263,34 @@ export default function AddFood() {
               />
             </div>
 
-            {analysis.noteUz && (
+            {displayNote && (
               <div className="text-cal text-sm bg-elev2 p-3 rounded-xl">
-                💡 {analysis.noteUz}
+                💡 {displayNote}
               </div>
             )}
           </Card>
 
-          {analysis.items.length > 0 && (
+          {scaledMicros && (
+            <Card className="space-y-2">
+              <div className="font-semibold text-sm">{t("addfood_vitamins")}</div>
+              <ul className="space-y-1">
+                {MICRO_LABELS.map(({ key, labelKey, unit }) => {
+                  const v = scaledMicros[key];
+                  if (typeof v !== "number" || v <= 0) return null;
+                  return (
+                    <VitaminRow
+                      key={key}
+                      label={t(labelKey)}
+                      value={v}
+                      unit={t(`unit_${unit}` as TranslationKey)}
+                    />
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+
+          {analysis.items.length > 1 && (
             <Card className="space-y-2">
               <div className="font-semibold text-sm">{t("addfood_items")}</div>
               <ul className="space-y-1 text-sm">
@@ -220,9 +299,16 @@ export default function AddFood() {
                   return (
                     <li key={i} className="flex justify-between items-center">
                       <div>
-                        <div>{it.name}</div>
-                        {it.reason && (
-                          <div className="text-dim text-xs">{it.reason}</div>
+                        <div>
+                          {it.name}
+                          {it.brand ? (
+                            <span className="text-dim"> · {it.brand}</span>
+                          ) : null}
+                        </div>
+                        {it.estimatedGrams > 0 && (
+                          <div className="text-dim text-xs">
+                            ≈ {Math.round(it.estimatedGrams * f)} {t("unit_g")}
+                          </div>
                         )}
                       </div>
                       <div className="tnum text-dim text-xs">
