@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AiFoodAnalysis, FoodMicros, MealType } from "@kaloriya/shared";
-import { Btn, Card, Field, Segmented } from "@/components/ui";
+import { rdiFor, rdiPercent } from "@kaloriya/shared";
+import {
+  Btn,
+  Card,
+  Chip,
+  DangerBanner,
+  Field,
+  InfoBanner,
+  SectionHeader,
+  Segmented,
+  SkeletonCard,
+} from "@/components/ui";
 import { analyzeFoodPhoto } from "@/lib/ai";
 import { useI18n, type TranslationKey } from "@/i18n";
 import { useApp } from "@/state/AppContext";
@@ -41,8 +52,10 @@ function MacroChip({
   color: string;
 }) {
   return (
-    <div className="bg-elev2 rounded-xl p-3 flex-1">
-      <div className="text-xs text-dim">{label}</div>
+    <div className="bg-elev2/70 border border-line/40 rounded-xl p-3 flex-1">
+      <div className="text-[11px] uppercase tracking-wide text-mute">
+        {label}
+      </div>
       <div className="font-display text-lg tnum" style={{ color }}>
         {Math.round(value * 10) / 10}
         <span className="text-dim text-xs ml-0.5">{unit}</span>
@@ -51,31 +64,23 @@ function MacroChip({
   );
 }
 
-function VitaminRow({ label, value, unit }: { label: string; value: number; unit: string }) {
-  return (
-    <li className="flex justify-between text-sm">
-      <span className="text-dim">{label}</span>
-      <span className="tnum">
-        {Math.round(value * 10) / 10} <span className="text-dim">{unit}</span>
-      </span>
-    </li>
-  );
-}
-
-const MICRO_LABELS: {
+interface MicroRowSpec {
   key: keyof FoodMicros;
   labelKey: TranslationKey;
   unit: "g" | "mg" | "mcg";
-}[] = [
-  { key: "fiber_g", labelKey: "nutr_fiber", unit: "g" },
-  { key: "vitamin_a_mcg", labelKey: "nutr_vit_a", unit: "mcg" },
-  { key: "vitamin_c_mg", labelKey: "nutr_vit_c", unit: "mg" },
-  { key: "vitamin_d_mcg", labelKey: "nutr_vit_d", unit: "mcg" },
-  { key: "vitamin_b12_mcg", labelKey: "nutr_vit_b12", unit: "mcg" },
-  { key: "iron_mg", labelKey: "nutr_iron", unit: "mg" },
-  { key: "calcium_mg", labelKey: "nutr_calcium", unit: "mg" },
-  { key: "potassium_mg", labelKey: "nutr_potassium", unit: "mg" },
-  { key: "sodium_mg", labelKey: "nutr_sodium", unit: "mg" },
+  rdiKey: keyof ReturnType<typeof rdiFor>;
+}
+
+const MICRO_ROWS: MicroRowSpec[] = [
+  { key: "fiber_g", labelKey: "nutr_fiber", unit: "g", rdiKey: "fiber_g" },
+  { key: "vitamin_a_mcg", labelKey: "nutr_vit_a", unit: "mcg", rdiKey: "vitamin_a_mcg" },
+  { key: "vitamin_c_mg", labelKey: "nutr_vit_c", unit: "mg", rdiKey: "vitamin_c_mg" },
+  { key: "vitamin_d_mcg", labelKey: "nutr_vit_d", unit: "mcg", rdiKey: "vitamin_d_mcg" },
+  { key: "vitamin_b12_mcg", labelKey: "nutr_vit_b12", unit: "mcg", rdiKey: "vitamin_b12_mcg" },
+  { key: "iron_mg", labelKey: "nutr_iron", unit: "mg", rdiKey: "iron_mg" },
+  { key: "calcium_mg", labelKey: "nutr_calcium", unit: "mg", rdiKey: "calcium_mg" },
+  { key: "potassium_mg", labelKey: "nutr_potassium", unit: "mg", rdiKey: "potassium_mg" },
+  { key: "sodium_mg", labelKey: "nutr_sodium", unit: "mg", rdiKey: "sodium_mg" },
 ];
 
 export default function AddFood() {
@@ -122,12 +127,14 @@ export default function AddFood() {
     const f = portion / 100;
     const src = analysis.micros;
     const out: FoodMicros = {};
-    for (const { key } of MICRO_LABELS) {
+    for (const { key } of MICRO_ROWS) {
       const v = src[key];
       if (typeof v === "number" && v > 0) out[key] = v * f;
     }
     return Object.keys(out).length > 0 ? out : null;
   }, [analysis, portion]);
+
+  const rdi = state.profile ? rdiFor(state.profile.sex) : null;
 
   async function onPick(file: File) {
     setBusy(true);
@@ -141,7 +148,12 @@ export default function AddFood() {
     setAnalysis(undefined);
     const base64 = dataUrl.split(",")[1] ?? "";
     try {
-      const res = await analyzeFoodPhoto(base64, { locale });
+      const res = await analyzeFoodPhoto(base64, {
+        locale,
+        allergies: state.profile?.allergies,
+        dietType: state.profile?.dietType,
+        goal: state.profile?.goal,
+      });
       if (!res.isFood) {
         const reason = res.notFoodReason ? ` (${res.notFoodReason})` : "";
         toast(t("addfood_not_food") + reason, "warn");
@@ -174,9 +186,12 @@ export default function AddFood() {
   }
 
   const displayNote = analysis?.note ?? analysis?.noteUz;
+  const allergenHits = analysis?.allergenHits ?? [];
+  const dietWarnings = analysis?.dietWarnings ?? [];
+  const healthWarnings = analysis?.healthWarnings ?? [];
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 animate-fade-in">
       <header className="pt-4">
         <div className="font-display text-2xl">{t("addfood_title")}</div>
         <div className="text-dim text-sm">{t("addfood_sub")}</div>
@@ -197,7 +212,9 @@ export default function AddFood() {
         </Field>
         {usedMeals.size > 0 && (
           <div className="text-dim text-xs">
-            {t("addfood_meal_auto", { meal: t(MEAL_OPTIONS.find((o) => o.value === meal)!.labelKey) })}
+            {t("addfood_meal_auto", {
+              meal: t(MEAL_OPTIONS.find((o) => o.value === meal)!.labelKey),
+            })}
           </div>
         )}
 
@@ -218,7 +235,12 @@ export default function AddFood() {
             if (f) void onPick(f);
           }}
         />
-        <Btn onClick={() => fileRef.current?.click()} className="w-full" disabled={busy}>
+        <Btn
+          variant="gradient"
+          onClick={() => fileRef.current?.click()}
+          className="w-full"
+          disabled={busy}
+        >
           {busy
             ? t("addfood_analyzing")
             : photoDataUrl
@@ -227,8 +249,46 @@ export default function AddFood() {
         </Btn>
       </Card>
 
-      {analysis && scaled && (
+      {busy && (
+        <div className="space-y-2 animate-fade-in">
+          <SkeletonCard height={180} />
+          <SkeletonCard height={100} />
+        </div>
+      )}
+
+      {analysis && scaled && !busy && (
         <>
+          {allergenHits.length > 0 && (
+            <DangerBanner>
+              <div className="font-semibold mb-0.5">
+                ⚠ {t("addfood_allergen_hit")}
+              </div>
+              <div>{allergenHits.join(", ")}</div>
+            </DangerBanner>
+          )}
+
+          {dietWarnings.length > 0 && (
+            <InfoBanner tone="warn">
+              <div className="font-semibold mb-0.5">
+                {t("addfood_diet_warning")}
+              </div>
+              <div>{dietWarnings.join(", ")}</div>
+            </InfoBanner>
+          )}
+
+          {healthWarnings.length > 0 && (
+            <InfoBanner tone="cal">
+              <div className="font-semibold mb-0.5">
+                {t("addfood_health_flag")}
+              </div>
+              <ul className="list-disc list-inside">
+                {healthWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </InfoBanner>
+          )}
+
           <Card className="space-y-3">
             <div className="flex justify-between items-baseline">
               <div>
@@ -242,11 +302,19 @@ export default function AddFood() {
                 )}
               </div>
               <div className="text-xs text-dim text-right">
-                <div>
-                  {t("addfood_confidence")}: {Math.round(analysis.confidence * 100)}%
-                </div>
+                <Chip
+                  tone={
+                    analysis.confidence > 0.75
+                      ? "success"
+                      : analysis.confidence > 0.5
+                        ? "info"
+                        : "warn"
+                  }
+                >
+                  {Math.round(analysis.confidence * 100)}%
+                </Chip>
                 {scaled.grams > 0 && (
-                  <div className="tnum">
+                  <div className="tnum mt-1">
                     ≈ {Math.round(scaled.grams)} {t("unit_g")}
                   </div>
                 )}
@@ -257,7 +325,9 @@ export default function AddFood() {
               <div className="font-display text-5xl tnum text-cal">
                 {Math.round(scaled.kcal)}
               </div>
-              <div className="text-dim text-sm">{t("unit_kcal")}</div>
+              <div className="text-dim text-xs uppercase tracking-wide">
+                {t("unit_kcal")}
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -271,13 +341,13 @@ export default function AddFood() {
                 label={t("home_fat")}
                 value={scaled.fat_g}
                 unit={t("unit_g")}
-                color="#FFB020"
+                color="#F59E0B"
               />
               <MacroChip
                 label={t("home_carbs")}
                 value={scaled.carbs_g}
                 unit={t("unit_g")}
-                color="#FF5A3C"
+                color="#F97316"
               />
             </div>
             <div className="flex gap-2">
@@ -285,46 +355,70 @@ export default function AddFood() {
                 label={t("home_sugar")}
                 value={scaled.sugar_g}
                 unit={t("unit_g")}
-                color="#EAF0FF"
+                color="#EC4899"
               />
               <MacroChip
                 label={t("home_salt")}
                 value={scaled.salt_g}
                 unit={t("unit_g")}
-                color="#EAF0FF"
+                color="#A78BFA"
               />
             </div>
 
             {displayNote && (
-              <div className="text-cal text-sm bg-elev2 p-3 rounded-xl">
+              <div className="text-cal text-sm bg-cal/10 border border-cal/30 p-3 rounded-xl">
                 💡 {displayNote}
               </div>
             )}
           </Card>
 
-          {scaledMicros && (
+          {scaledMicros && rdi && (
             <Card className="space-y-2">
-              <div className="font-semibold text-sm">{t("addfood_vitamins")}</div>
-              <ul className="space-y-1">
-                {MICRO_LABELS.map(({ key, labelKey, unit }) => {
+              <div className="font-semibold text-sm">
+                {t("addfood_vitamins")}
+              </div>
+              <ul className="space-y-1.5">
+                {MICRO_ROWS.map(({ key, labelKey, unit, rdiKey }) => {
                   const v = scaledMicros[key];
                   if (typeof v !== "number" || v <= 0) return null;
+                  const target = rdi[rdiKey];
+                  const pct = rdiPercent(v, target);
+                  const barColor =
+                    pct >= 100 ? "#22C55E" : pct >= 40 ? "#38BDF8" : "#5A6788";
                   return (
-                    <VitaminRow
-                      key={key}
-                      label={t(labelKey)}
-                      value={v}
-                      unit={t(`unit_${unit}` as TranslationKey)}
-                    />
+                    <li key={key}>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-dim">{t(labelKey)}</span>
+                        <span className="tnum">
+                          {Math.round(v * 10) / 10}{" "}
+                          <span className="text-dim">
+                            {t(`unit_${unit}` as TranslationKey)}
+                          </span>
+                          <span className="text-mute ml-1 tnum">· {pct}%</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-elev2 rounded-full overflow-hidden mt-1">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, pct)}%`,
+                            background: barColor,
+                          }}
+                        />
+                      </div>
+                    </li>
                   );
                 })}
               </ul>
+              <div className="text-mute text-[10px] mt-2">
+                {t("addfood_rdi_note")}
+              </div>
             </Card>
           )}
 
           {analysis.items.length > 1 && (
             <Card className="space-y-2">
-              <div className="font-semibold text-sm">{t("addfood_items")}</div>
+              <SectionHeader title={t("addfood_items")} />
               <ul className="space-y-1 text-sm">
                 {analysis.items.map((it, i) => {
                   const f = portion / 100;
@@ -333,9 +427,9 @@ export default function AddFood() {
                       <div>
                         <div>
                           {it.name}
-                          {it.brand ? (
+                          {it.brand && (
                             <span className="text-dim"> · {it.brand}</span>
-                          ) : null}
+                          )}
                         </div>
                         {it.estimatedGrams > 0 && (
                           <div className="text-dim text-xs">
@@ -344,8 +438,7 @@ export default function AddFood() {
                         )}
                       </div>
                       <div className="tnum text-dim text-xs">
-                        {Math.round(it.macros.kcal * f)} {t("unit_kcal")} · P{" "}
-                        {Math.round(it.macros.protein_g * f)}g
+                        {Math.round(it.macros.kcal * f)} {t("unit_kcal")}
                       </div>
                     </li>
                   );
@@ -369,9 +462,9 @@ export default function AddFood() {
               step={5}
               value={portion}
               onChange={(e) => setPortion(Number(e.target.value))}
-              className="w-full accent-[#FFB020]"
+              className="w-full"
             />
-            <Btn onClick={save} className="w-full text-lg">
+            <Btn onClick={save} variant="gradient" size="lg" className="w-full">
               {t("addfood_will_eat")}
             </Btn>
           </Card>

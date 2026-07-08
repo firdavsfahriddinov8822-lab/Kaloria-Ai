@@ -35,7 +35,7 @@ function TabBar() {
     { to: "/settings", labelKey: "tab_settings" as const, Icon: SettingsIcon },
   ];
   return (
-    <nav className="fixed bottom-0 inset-x-0 bg-elev border-t border-elev2 safe-bottom">
+    <nav className="fixed bottom-0 inset-x-0 bg-elev/95 backdrop-blur-md border-t border-line/60 safe-bottom">
       <div className="max-w-md mx-auto grid grid-cols-5">
         {tabs.map(({ to, labelKey, Icon }) => (
           <NavLink
@@ -43,13 +43,20 @@ function TabBar() {
             to={to}
             end={to === "/"}
             className={({ isActive }) =>
-              `flex flex-col items-center py-2 text-xs ${
-                isActive ? "text-cal" : "text-dim"
+              `flex flex-col items-center py-2 text-xs transition relative ${
+                isActive ? "text-cal" : "text-mute hover:text-dim"
               }`
             }
           >
-            <Icon size={22} />
-            <span className="mt-0.5">{t(labelKey)}</span>
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-cal rounded-full shadow-glow-cal" />
+                )}
+                <Icon size={22} />
+                <span className="mt-0.5 font-medium">{t(labelKey)}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </div>

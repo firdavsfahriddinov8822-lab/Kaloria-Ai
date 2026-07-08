@@ -2,6 +2,8 @@ import type {
   AiDailyWorkout,
   AiFoodAnalysis,
   DerivedTargets,
+  DietType,
+  Goal,
   Profile,
   WorkoutEntry,
 } from "@kaloriya/shared";
@@ -9,7 +11,13 @@ import { api } from "./api";
 
 export async function analyzeFoodPhoto(
   imageBase64: string,
-  opts?: { noteUz?: string; locale?: string },
+  opts?: {
+    noteUz?: string;
+    locale?: string;
+    allergies?: string[];
+    dietType?: DietType;
+    goal?: Goal;
+  },
 ): Promise<AiFoodAnalysis> {
   const res = await api.analyzeFood({ imageBase64, ...opts });
   if (!res.ok || !res.data) {

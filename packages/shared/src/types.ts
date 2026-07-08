@@ -102,6 +102,17 @@ export interface DayLog {
   sleepHours?: number;
 }
 
+export interface DaySummary {
+  date: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbsG: number;
+  waterMl: number;
+  workoutsCount: number;
+  weightKg?: number;
+}
+
 export interface AuthUser {
   id: string;
   email?: string;
@@ -142,6 +153,8 @@ export interface AiAnalyzedItem {
   micros?: FoodMicros;
   portionPctSuggested: number;
   reason?: string;
+  allergens?: string[];
+  dietFlags?: string[];
 }
 
 export interface AiFoodAnalysis {
@@ -154,6 +167,9 @@ export interface AiFoodAnalysis {
   note?: string;
   noteUz?: string;
   notFoodReason?: string;
+  allergenHits?: string[];
+  dietWarnings?: string[];
+  healthWarnings?: string[];
 }
 
 export type WorkoutIntensity = "easy" | "moderate" | "hard";
@@ -166,6 +182,7 @@ export interface AiWorkoutExercise {
   targetMuscle?: string;
   notes?: string;
   equipment?: string;
+  rpe?: number;
 }
 
 export interface AiDailyWorkout {
@@ -177,8 +194,11 @@ export interface AiDailyWorkout {
   totalKcal: number;
   intensity: WorkoutIntensity;
   exercises: AiWorkoutExercise[];
+  warmupList?: string[];
+  cooldownList?: string[];
   doctorNote?: string;
   reminders?: string[];
+  tomorrowHint?: string;
 }
 
 export interface ApiError {

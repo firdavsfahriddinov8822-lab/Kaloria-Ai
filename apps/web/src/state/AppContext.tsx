@@ -9,6 +9,7 @@ import React, {
 import type {
   AuthUser,
   DayLog,
+  DaySummary,
   DerivedTargets,
   FoodEntry,
   Profile,
@@ -16,7 +17,7 @@ import type {
   WeightEntry,
   WorkoutEntry,
 } from "@kaloriya/shared";
-import { deriveTargets } from "@kaloriya/shared";
+import { deriveTargets, sumMacros } from "@kaloriya/shared";
 import { api } from "@/lib/api";
 import { storageGet, storageSet } from "@/lib/storage";
 
@@ -32,6 +33,8 @@ interface AppState {
   targets?: DerivedTargets;
   today: DayLog;
   weights: WeightEntry[];
+  history: DaySummary[];
+  streak: number;
   toasts: Toast[];
 }
 
@@ -60,12 +63,52 @@ function emptyDay(): DayLog {
 }
 
 const GUEST_UID = "_local";
+const HISTORY_CAP = 90;
 
 interface UserData {
   uid: string;
   profile?: Profile;
   day: DayLog;
   weights: WeightEntry[];
+  history: DaySummary[];
+}
+
+function summarizeDay(day: DayLog, weightKg?: number): DaySummary {
+  const totals = sumMacros(
+    day.foods.map((f) => ({ macros: f.macros, portionPct: f.portionPct })),
+  );
+  const water = day.water.reduce((s, w) => s + w.ml, 0);
+  return {
+    date: day.date,
+    kcal: Math.round(totals.kcal),
+    proteinG: Math.round(totals.protein_g),
+    fatG: Math.round(totals.fat_g),
+    carbsG: Math.round(totals.carbs_g),
+    waterMl: water,
+    workoutsCount: day.workouts.length,
+    weightKg,
+  };
+}
+
+function isActiveDay(s: DaySummary): boolean {
+  return s.kcal > 0 || s.workoutsCount > 0 || s.waterMl > 0;
+}
+
+function computeStreak(history: DaySummary[], today: DaySummary): number {
+  const map = new Map<string, DaySummary>();
+  history.forEach((h) => map.set(h.date, h));
+  map.set(today.date, today);
+
+  let streak = 0;
+  const cursor = new Date(today.date + "T00:00:00");
+  for (;;) {
+    const key = cursor.toISOString().slice(0, 10);
+    const entry = map.get(key);
+    if (!entry || !isActiveDay(entry)) break;
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 function loadUserData(uid: string): UserData {
@@ -74,6 +117,7 @@ function loadUserData(uid: string): UserData {
     profile: storageGet<Profile | undefined>(`u:${uid}:profile`, undefined),
     day: storageGet<DayLog>(`u:${uid}:day`, emptyDay()),
     weights: storageGet<WeightEntry[]>(`u:${uid}:weights`, []),
+    history: storageGet<DaySummary[]>(`u:${uid}:history`, []),
   };
 }
 
@@ -81,6 +125,7 @@ function saveUserData(data: UserData): void {
   storageSet(`u:${data.uid}:profile`, data.profile);
   storageSet(`u:${data.uid}:day`, data.day);
   storageSet(`u:${data.uid}:weights`, data.weights);
+  storageSet(`u:${data.uid}:history`, data.history);
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -92,28 +137,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<UserData>(() => loadUserData(uid));
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // When the signed-in user changes, atomically reload their notebook so
-  // logging in as a different account never shows another user's data,
-  // and re-logging in restores what was saved for that account.
   useEffect(() => {
     if (data.uid !== uid) setData(loadUserData(uid));
   }, [uid, data.uid]);
 
-  // Roll over to a new day at midnight.
+  // On day rollover, archive yesterday's summary into history.
   useEffect(() => {
     if (data.day.date !== today()) {
-      setData((d) => ({ ...d, day: emptyDay() }));
+      setData((d) => {
+        const latestWeight = d.weights[d.weights.length - 1]?.weightKg;
+        const summary = summarizeDay(d.day, latestWeight);
+        const filtered = d.history.filter((h) => h.date !== summary.date);
+        const nextHistory = isActiveDay(summary)
+          ? [...filtered, summary]
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .slice(-HISTORY_CAP)
+          : filtered;
+        return { ...d, day: emptyDay(), history: nextHistory };
+      });
     }
   }, [data.day.date]);
 
-  // Persist the device-level "last signed in" pointer.
   useEffect(() => {
     storageSet("user", user);
   }, [user]);
 
-  // Persist per-user data, but only when data belongs to the current uid.
-  // Skips the transient render where uid changed but data still holds the
-  // previous user's values.
   useEffect(() => {
     if (data.uid === uid) saveUserData(data);
   }, [uid, data]);
@@ -121,6 +169,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const targets = useMemo(
     () => (data.profile ? deriveTargets(data.profile) : undefined),
     [data.profile],
+  );
+
+  const currentSummary = useMemo(
+    () => summarizeDay(data.day, data.weights[data.weights.length - 1]?.weightKg),
+    [data.day, data.weights],
+  );
+
+  const streak = useMemo(
+    () => computeStreak(data.history, currentSummary),
+    [data.history, currentSummary],
   );
 
   const toast = useCallback((message: string, kind: Toast["kind"] = "info") => {
@@ -182,8 +240,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout();
     setUser(undefined);
-    // uid → GUEST_UID; the reload effect swaps `data` to the guest notebook,
-    // leaving the signed-out user's data untouched under `u:{uid}:*`.
   }, []);
 
   useEffect(() => {
@@ -199,6 +255,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       targets,
       today: data.day,
       weights: data.weights,
+      history: data.history,
+      streak,
       toasts,
     },
     setProfile,

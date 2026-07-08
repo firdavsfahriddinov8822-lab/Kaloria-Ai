@@ -3,6 +3,8 @@ import type {
   AiFoodAnalysis,
   AuthUser,
   DerivedTargets,
+  DietType,
+  Goal,
   Profile,
   WorkoutEntry,
 } from "@kaloriya/shared";
@@ -135,6 +137,9 @@ export const api = {
     imageBase64: string;
     noteUz?: string;
     locale?: string;
+    allergies?: string[];
+    dietType?: DietType;
+    goal?: Goal;
   }): Promise<ApiResult<AiFoodAnalysis>> {
     try {
       const res = await authedFetch("/api/ai/analyze-food", {

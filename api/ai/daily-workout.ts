@@ -56,19 +56,22 @@ function normalizeLocale(raw: string | undefined): Locale {
 
 function systemPrompt(loc: Locale): string {
   const lang = LOCALE_NAME[loc];
-  return `You are a certified fitness coach and preventive-medicine physician.
-The user gives you their profile, calorie/macro targets, today's date, and their recent workouts.
-Produce a single-day workout plan, written in ${lang}, that is safe, realistic, and aligned with the stated goal.
+  return `You are a certified strength & conditioning coach with a background in preventive medicine.
+The user provides their profile, calorie/macro targets, today's date, and recent workouts.
+Produce a single, safe, personally tuned day of training, written in ${lang}.
 
-RESPOND WITH JSON ONLY. Schema:
+RESPOND WITH JSON ONLY — no prose, no code fences.
+
+Schema:
 {
   "date": "YYYY-MM-DD",
-  "focus": "short title of today's session in ${lang} (e.g. 'Upper body — push day', 'Kardio va yadro')",
+  "focus": "short title of today's session in ${lang}",
   "warmupMin": 5,
   "cooldownMin": 5,
   "totalMin": 40,
   "totalKcal": 300,
   "intensity": "easy" | "moderate" | "hard",
+  "warmupList": ["3-5 dynamic warm-up moves in ${lang} (e.g. leg swings, hip circles, arm rotations)"],
   "exercises": [
     {
       "name": "exercise name in ${lang}",
@@ -76,24 +79,28 @@ RESPOND WITH JSON ONLY. Schema:
       "reps": "e.g. '10-12' or '30 sec'",
       "restSec": 60,
       "targetMuscle": "primary muscle group in ${lang}",
-      "notes": "one short cue about form or safety, in ${lang}",
-      "equipment": "e.g. 'dumbbell', 'bodyweight', 'yoga mat'"
+      "notes": "one-line form or safety cue in ${lang}",
+      "equipment": "e.g. 'dumbbell', 'bodyweight'",
+      "rpe": 7
     }
   ],
-  "doctorNote": "2 sentences of doctor-style guidance in ${lang} — connect today's plan to the user's goal, mention hydration or recovery.",
-  "reminders": ["2-4 short reminders in ${lang}: hydration, form, medical caveats"]
+  "cooldownList": ["3-5 static stretches or breath work items in ${lang}"],
+  "doctorNote": "2 sentences of clinical guidance in ${lang}: how today's session serves the goal, one recovery cue.",
+  "reminders": ["2-4 short reminders in ${lang}: hydration, form, medical caveats"],
+  "tomorrowHint": "one short sentence in ${lang} suggesting the focus for tomorrow"
 }
 
 CLINICAL RULES:
-- Never prescribe medication or diagnose. Encourage seeing a doctor if the user has heart, joint, or chronic conditions.
-- For lose-weight goal: mix moderate cardio and full-body strength. Prefer compound movements.
-- For gain-weight goal: emphasize progressive-overload strength, 3-5 sets, longer rest, protein reminder.
-- For maintain: balanced strength + mobility.
-- Adjust intensity down for age 50+ or activity="sedentary". Never mark "hard" for those users.
-- Avoid duplicating the same primary muscle group hit hard in the last 2 days (use recentWorkouts as a hint if provided).
-- Choose exercises appropriate to the environment (default: home, no equipment).
-- All human-readable text (focus, name, targetMuscle, notes, doctorNote, reminders) must be in ${lang}.
-- Return JSON only. No prose. No code fences.
+- Never prescribe medication or diagnose. If user reports pain in a body part (per profile), avoid loading it.
+- lose-goal: mix moderate cardio (Z2) + compound strength. Higher-rep strength (8-15) to protect joints. Target RPE 6-7.
+- gain-goal: emphasize progressive-overload strength, 3-5 sets, 60-90s rest, RPE 7-8. Include one core move.
+- maintain: balanced strength + mobility. RPE 5-6.
+- Age 50+ or activity="sedentary" → intensity NEVER "hard". Warm-up expanded. Lower impact.
+- Avoid repeating the same primary muscle group heavily worked in the last 2 days (use recentWorkouts as a hint).
+- Warm-up: dynamic mobility (no static holds). Cool-down: gentle stretches, breath work.
+- Every human-readable field must be in ${lang}. RPE is a number 1-10.
+- Reminders MUST include at least one on hydration and one on stopping if sharp pain occurs.
+- Return JSON only.
 `;
 }
 
@@ -105,6 +112,9 @@ function userPrompt(body: RequestBody, loc: Locale): string {
         `- ${w.createdAt.slice(0, 10)}: ${w.durationMin} min, ${w.kcalBurned} kcal`,
     )
     .join("\n");
+  const alrg = body.profile.allergies.length
+    ? body.profile.allergies.join(", ")
+    : "none";
   return `User profile:
 - Name: ${body.profile.name}
 - Sex: ${body.profile.sex}
@@ -112,15 +122,16 @@ function userPrompt(body: RequestBody, loc: Locale): string {
 - Height: ${body.profile.heightCm} cm
 - Weight: ${body.profile.weightKg} kg
 - Goal: ${body.profile.goal} (pace: ${body.profile.goalPace})
-- Activity level: ${body.profile.activity}
+- Activity: ${body.profile.activity}
 - Diet: ${body.profile.dietType}
-- Allergies: ${body.profile.allergies.join(", ") || "none"}
+- Allergies: ${alrg}
 
 Daily targets:
 - Calories: ${body.targets.dailyKcal} kcal
 - Protein: ${body.targets.proteinG} g
 - Fat: ${body.targets.fatG} g
 - Carbs: ${body.targets.carbsG} g
+- BMI: ${body.targets.bmi}
 
 Today: ${body.date}
 Environment: ${body.environment ?? "home"}
@@ -147,6 +158,7 @@ function normalizeWorkout(parsed: unknown, fallbackDate: string): AiDailyWorkout
     totalMin: typeof p.totalMin === "number" ? p.totalMin : 30,
     totalKcal: typeof p.totalKcal === "number" ? p.totalKcal : 200,
     intensity: normalizeIntensity(p.intensity),
+    warmupList: Array.isArray(p.warmupList) ? p.warmupList : undefined,
     exercises: exercises.map((e) => ({
       name: e.name ?? "",
       sets: typeof e.sets === "number" ? e.sets : 3,
@@ -155,9 +167,12 @@ function normalizeWorkout(parsed: unknown, fallbackDate: string): AiDailyWorkout
       targetMuscle: e.targetMuscle,
       notes: e.notes,
       equipment: e.equipment,
+      rpe: typeof e.rpe === "number" ? e.rpe : undefined,
     })),
+    cooldownList: Array.isArray(p.cooldownList) ? p.cooldownList : undefined,
     doctorNote: p.doctorNote,
     reminders: Array.isArray(p.reminders) ? p.reminders : undefined,
+    tomorrowHint: p.tomorrowHint,
   };
 }
 
@@ -178,9 +193,9 @@ function stubWorkout(date: string, loc: Locale): AiDailyWorkout {
     totalKcal: 220,
     intensity: "moderate",
     exercises: [
-      { name: "Squat", sets: 3, reps: "12", restSec: 60, targetMuscle: "quads/glutes", equipment: "bodyweight" },
-      { name: "Push-up", sets: 3, reps: "8-12", restSec: 60, targetMuscle: "chest/triceps", equipment: "bodyweight" },
-      { name: "Plank", sets: 3, reps: "30 sec", restSec: 45, targetMuscle: "core", equipment: "bodyweight" },
+      { name: "Squat", sets: 3, reps: "12", restSec: 60, targetMuscle: "quads/glutes", equipment: "bodyweight", rpe: 6 },
+      { name: "Push-up", sets: 3, reps: "8-12", restSec: 60, targetMuscle: "chest/triceps", equipment: "bodyweight", rpe: 6 },
+      { name: "Plank", sets: 3, reps: "30 sec", restSec: 45, targetMuscle: "core", equipment: "bodyweight", rpe: 6 },
     ],
     doctorNote: note,
     reminders: [],
@@ -228,7 +243,7 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
   try {
     const msg = await anthropic.messages.create({
       model: anthropicModel(),
-      max_tokens: 2500,
+      max_tokens: 3000,
       system: systemPrompt(loc),
       messages: [
         {

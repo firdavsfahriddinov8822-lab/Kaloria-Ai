@@ -169,6 +169,25 @@ const dict = {
     ru: "Начать тренировку",
     en: "Start workout",
   },
+  home_over: { uz: "Ortiqcha", ru: "Превышение", en: "Over" },
+  home_streak: { uz: "kun", ru: "дн", en: "days" },
+  home_doctor_brief: {
+    uz: "Doktor tavsiyasi",
+    ru: "Совет врача",
+    en: "Doctor's brief",
+  },
+  home_trend: {
+    uz: "So'nggi 7 kun",
+    ru: "Последние 7 дней",
+    en: "Last 7 days",
+  },
+  home_trend_sub: {
+    uz: "Kaloriya trendi va mashqlar",
+    ru: "Тренд калорий и тренировки",
+    en: "Calorie trend and workouts",
+  },
+  home_trend_7d: { uz: "O'rtacha", ru: "Среднее", en: "Average" },
+  home_trend_workouts: { uz: "mashq", ru: "трен.", en: "workouts" },
 
   // Food
   food_title: { uz: "Ovqat", ru: "Еда", en: "Food" },
@@ -230,6 +249,26 @@ const dict = {
     uz: "Avtomatik: {meal} tanlandi",
     ru: "Автоматически: {meal}",
     en: "Auto: {meal}",
+  },
+  addfood_allergen_hit: {
+    uz: "Diqqat: allergen aniqlandi",
+    ru: "Внимание: обнаружен аллерген",
+    en: "Warning: allergen detected",
+  },
+  addfood_diet_warning: {
+    uz: "Sizning ovqat turingizga mos emas",
+    ru: "Не соответствует вашему типу питания",
+    en: "Not compatible with your diet",
+  },
+  addfood_health_flag: {
+    uz: "Sog'liq ogohlantirishlari",
+    ru: "Клинические предупреждения",
+    en: "Health flags",
+  },
+  addfood_rdi_note: {
+    uz: "% — kunlik norma bo'yicha (RDI).",
+    ru: "% — от суточной нормы (RDI).",
+    en: "% — of daily reference intake (RDI).",
   },
   addfood_vitamins: {
     uz: "Vitamin va minerallar",
@@ -309,6 +348,21 @@ const dict = {
     ru: "Готовые программы",
     en: "Ready programs",
   },
+  workouts_warmup_list: {
+    uz: "Isinish",
+    ru: "Разминка",
+    en: "Warm-up",
+  },
+  workouts_cooldown_list: {
+    uz: "Sovutish",
+    ru: "Заминка",
+    en: "Cool-down",
+  },
+  workouts_tomorrow: {
+    uz: "Ertaga",
+    ru: "Завтра",
+    en: "Tomorrow",
+  },
   intensity_easy: { uz: "Yengil", ru: "Лёгкая", en: "Easy" },
   intensity_moderate: { uz: "O'rta", ru: "Средняя", en: "Moderate" },
   intensity_hard: { uz: "Og'ir", ru: "Тяжёлая", en: "Hard" },
@@ -342,6 +396,24 @@ const dict = {
     ru: "Записей ещё нет.",
     en: "No records yet.",
   },
+  progress_days: { uz: "kun", ru: "дн", en: "days" },
+  progress_bmi_status: { uz: "BMI holati", ru: "Статус BMI", en: "BMI status" },
+  bmi_underweight: {
+    uz: "Vazn kam",
+    ru: "Недостаток веса",
+    en: "Underweight",
+  },
+  bmi_healthy: {
+    uz: "Sog'lom oraliqda",
+    ru: "Здоровый диапазон",
+    en: "Healthy range",
+  },
+  bmi_overweight: {
+    uz: "Ortiqcha vazn",
+    ru: "Избыточный вес",
+    en: "Overweight",
+  },
+  bmi_obese: { uz: "Semizlik", ru: "Ожирение", en: "Obese" },
 
   // Settings
   settings_title: { uz: "Sozlash", ru: "Настройки", en: "Settings" },
