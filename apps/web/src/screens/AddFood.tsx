@@ -9,9 +9,25 @@ import { useApp } from "@/state/AppContext";
 const MEAL_OPTIONS: { value: MealType; labelKey: TranslationKey }[] = [
   { value: "breakfast", labelKey: "meal_breakfast" },
   { value: "lunch", labelKey: "meal_lunch" },
-  { value: "dinner", labelKey: "meal_dinner" },
   { value: "snack", labelKey: "meal_snack" },
+  { value: "dinner", labelKey: "meal_dinner" },
 ];
+
+function detectCurrentMeal(now: Date): MealType {
+  const h = now.getHours();
+  if (h < 11) return "breakfast";
+  if (h < 16) return "lunch";
+  if (h < 19) return "snack";
+  return "dinner";
+}
+
+function firstUnusedMeal(preferred: MealType, used: Set<MealType>): MealType {
+  if (!used.has(preferred)) return preferred;
+  for (const o of MEAL_OPTIONS) {
+    if (!used.has(o.value)) return o.value;
+  }
+  return preferred;
+}
 
 function MacroChip({
   label,
@@ -65,9 +81,15 @@ const MICRO_LABELS: {
 export default function AddFood() {
   const nav = useNavigate();
   const { t, locale } = useI18n();
-  const { addFood, toast } = useApp();
+  const { state, addFood, toast } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [meal, setMeal] = useState<MealType>("lunch");
+  const usedMeals = useMemo(
+    () => new Set<MealType>(state.today.foods.map((f) => f.meal)),
+    [state.today.foods],
+  );
+  const [meal, setMeal] = useState<MealType>(() =>
+    firstUnusedMeal(detectCurrentMeal(new Date()), usedMeals),
+  );
   const [analysis, setAnalysis] = useState<AiFoodAnalysis | undefined>();
   const [portion, setPortion] = useState(100);
   const [busy, setBusy] = useState(false);
@@ -165,9 +187,19 @@ export default function AddFood() {
           <Segmented
             value={meal}
             onChange={setMeal}
-            options={MEAL_OPTIONS.map((o) => ({ value: o.value, labelUz: t(o.labelKey) }))}
+            options={MEAL_OPTIONS.map((o) => ({
+              value: o.value,
+              labelUz: t(o.labelKey),
+              disabled: usedMeals.has(o.value) && o.value !== meal,
+              hint: usedMeals.has(o.value) ? t("addfood_meal_done") : undefined,
+            }))}
           />
         </Field>
+        {usedMeals.size > 0 && (
+          <div className="text-dim text-xs">
+            {t("addfood_meal_auto", { meal: t(MEAL_OPTIONS.find((o) => o.value === meal)!.labelKey) })}
+          </div>
+        )}
 
         {photoDataUrl && (
           <div className="rounded-xl overflow-hidden bg-elev2">

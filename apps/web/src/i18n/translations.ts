@@ -221,6 +221,16 @@ const dict = {
     en: "This is not food. Please take a photo of a meal.",
   },
   addfood_brand: { uz: "Brend", ru: "Бренд", en: "Brand" },
+  addfood_meal_done: {
+    uz: "Bu mahal uchun ovqat qo'shilgan",
+    ru: "На этот приём уже добавлена еда",
+    en: "Already logged for this meal",
+  },
+  addfood_meal_auto: {
+    uz: "Avtomatik: {meal} tanlandi",
+    ru: "Автоматически: {meal}",
+    en: "Auto: {meal}",
+  },
   addfood_vitamins: {
     uz: "Vitamin va minerallar",
     ru: "Витамины и минералы",

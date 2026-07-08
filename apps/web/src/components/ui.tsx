@@ -157,21 +157,31 @@ export function Segmented<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; labelUz: string }[];
+  options: { value: T; labelUz: string; disabled?: boolean; hint?: string }[];
 }) {
   return (
-    <div className="inline-flex bg-elev2 rounded-xl p-1">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
-            value === o.value ? "bg-cal text-bg" : "text-dim"
-          }`}
-        >
-          {o.labelUz}
-        </button>
-      ))}
+    <div className="inline-flex bg-elev2 rounded-xl p-1 flex-wrap gap-1">
+      {options.map((o) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            onClick={() => !o.disabled && onChange(o.value)}
+            disabled={o.disabled}
+            title={o.hint}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+              o.disabled
+                ? "text-dim opacity-40 line-through cursor-not-allowed"
+                : active
+                  ? "bg-cal text-bg"
+                  : "text-dim"
+            }`}
+          >
+            {o.labelUz}
+            {o.disabled && " ✓"}
+          </button>
+        );
+      })}
     </div>
   );
 }
