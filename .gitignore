@@ -13,3 +13,5 @@ coverage
 .turbo
 .cache
 apps/web/dev-dist
+*.tsbuildinfo
+packages/shared/dist
