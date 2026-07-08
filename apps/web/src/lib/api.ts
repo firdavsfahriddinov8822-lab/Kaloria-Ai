@@ -53,7 +53,7 @@ export const api = {
     email: string;
     password: string;
     displayName?: string;
-  }): Promise<ApiResult<{ user: AuthUser }>> {
+  }): Promise<ApiResult<{ user: AuthUser; needsEmailConfirm?: boolean }>> {
     if (!supabaseConfigured) {
       return {
         ok: false,
@@ -68,6 +68,23 @@ export const api = {
       },
     });
     if (error) return { ok: false, error: { code: "signup_failed", message: error.message } };
+
+    // If sign-up returned no session (email confirmation required),
+    // try to sign in immediately. If confirmation is required, this fails
+    // gracefully and we tell the user to check their email.
+    if (!data.session) {
+      const signIn = await supabase.auth.signInWithPassword({
+        email: payload.email,
+        password: payload.password,
+      });
+      if (signIn.error) {
+        return {
+          ok: true,
+          data: { user: toAuthUser(data.user)!, needsEmailConfirm: true },
+        };
+      }
+      return { ok: true, data: { user: toAuthUser(signIn.data.user)! } };
+    }
     return { ok: true, data: { user: toAuthUser(data.user)! } };
   },
 

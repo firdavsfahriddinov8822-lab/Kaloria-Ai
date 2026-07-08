@@ -2,10 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
+import { devApiPlugin } from "./vite-dev-api";
 
 export default defineConfig({
   plugins: [
     react(),
+    devApiPlugin(path.resolve(__dirname, "../../api")),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],

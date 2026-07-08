@@ -2,10 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Btn, Card, Field, TextInput } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useI18n } from "@/i18n";
 import { useApp } from "@/state/AppContext";
+import { shouldOfferPinSetup } from "@/lib/security";
 
 export default function Login() {
   const nav = useNavigate();
+  const { t } = useI18n();
   const { toast, refreshUser } = useApp();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -14,29 +17,45 @@ export default function Login() {
 
   async function submit() {
     if (!email || !password) {
-      toast("Email va parolni kiriting", "warn");
+      toast(t("auth_missing_fields"), "warn");
       return;
     }
     setBusy(true);
-    const res =
-      mode === "login"
-        ? await api.login({ email, password })
-        : await api.register({ email, password });
+    if (mode === "login") {
+      const res = await api.login({ email, password });
+      setBusy(false);
+      if (!res.ok) {
+        toast(res.error?.message ?? t("error"), "error");
+        return;
+      }
+      await refreshUser();
+      toast(t("auth_welcome"), "success");
+      if (shouldOfferPinSetup()) nav("/pin-setup");
+      else nav("/setup");
+      return;
+    }
+    const res = await api.register({ email, password });
     setBusy(false);
     if (!res.ok) {
-      toast(res.error?.message ?? "Xatolik", "error");
+      toast(res.error?.message ?? t("error"), "error");
+      return;
+    }
+    if (res.data?.needsEmailConfirm) {
+      toast(t("auth_check_email"), "info");
+      setMode("login");
       return;
     }
     await refreshUser();
-    toast("Xush kelibsiz!", "success");
-    nav("/setup");
+    toast(t("auth_welcome"), "success");
+    if (shouldOfferPinSetup()) nav("/pin-setup");
+    else nav("/setup");
   }
 
   return (
     <div className="p-4 pt-10 space-y-4">
       <div className="text-center">
-        <div className="font-display text-3xl">Kaloriya</div>
-        <div className="text-dim">AI fitnes va ovqatlanish murabbiyi</div>
+        <div className="font-display text-3xl">{t("app_name")}</div>
+        <div className="text-dim">{t("app_tagline")}</div>
       </div>
       <Card className="space-y-3">
         <div className="flex gap-2">
@@ -46,7 +65,7 @@ export default function Login() {
               mode === "login" ? "bg-cal text-bg" : "bg-elev2 text-dim"
             }`}
           >
-            Kirish
+            {t("auth_login")}
           </button>
           <button
             onClick={() => setMode("register")}
@@ -54,27 +73,27 @@ export default function Login() {
               mode === "register" ? "bg-cal text-bg" : "bg-elev2 text-dim"
             }`}
           >
-            Ro'yxat
+            {t("auth_register")}
           </button>
         </div>
-        <Field label="Email">
+        <Field label={t("auth_email")}>
           <TextInput
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="siz@misol.uz"
+            placeholder={t("auth_email_placeholder")}
           />
         </Field>
-        <Field label="Parol">
+        <Field label={t("auth_password")}>
           <TextInput
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Kamida 8 belgi"
+            placeholder={t("auth_password_placeholder")}
           />
         </Field>
         <Btn onClick={submit} disabled={busy} className="w-full">
-          {busy ? "Kuting..." : mode === "login" ? "Kirish" : "Ro'yxatdan o'tish"}
+          {busy ? t("loading") : mode === "login" ? t("auth_login") : t("auth_register")}
         </Btn>
       </Card>
     </div>

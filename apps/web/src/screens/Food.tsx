@@ -2,16 +2,18 @@ import { Link } from "react-router-dom";
 import type { MealType } from "@kaloriya/shared";
 import { mealBudget, sumMacros } from "@kaloriya/shared";
 import { Card } from "@/components/ui";
+import { useI18n, type TranslationKey } from "@/i18n";
 import { useApp } from "@/state/AppContext";
 
-const MEALS: { key: MealType; labelUz: string }[] = [
-  { key: "breakfast", labelUz: "Nonushta" },
-  { key: "lunch", labelUz: "Tushlik" },
-  { key: "dinner", labelUz: "Kechki ovqat" },
-  { key: "snack", labelUz: "Snak" },
+const MEALS: { key: MealType; labelKey: TranslationKey }[] = [
+  { key: "breakfast", labelKey: "meal_breakfast" },
+  { key: "lunch", labelKey: "meal_lunch" },
+  { key: "dinner", labelKey: "meal_dinner" },
+  { key: "snack", labelKey: "meal_snack" },
 ];
 
 export default function Food() {
+  const { t } = useI18n();
   const { state, removeFood } = useApp();
   const { targets, today } = state;
   if (!targets) return null;
@@ -19,12 +21,12 @@ export default function Food() {
   return (
     <div className="p-4 space-y-3">
       <header className="pt-4 flex justify-between items-center">
-        <div className="font-display text-2xl">Ovqat</div>
+        <div className="font-display text-2xl">{t("food_title")}</div>
         <Link
           to="/food/add"
           className="bg-cal text-bg px-3 py-2 rounded-xl font-semibold"
         >
-          + Qo'shish
+          {t("home_add_food")}
         </Link>
       </header>
 
@@ -37,13 +39,13 @@ export default function Food() {
         return (
           <Card key={m.key}>
             <div className="flex justify-between items-baseline">
-              <div className="font-semibold">{m.labelUz}</div>
+              <div className="font-semibold">{t(m.labelKey)}</div>
               <div className="text-dim text-sm tnum">
-                {Math.round(totals.kcal)} / {budget} kkal
+                {Math.round(totals.kcal)} / {budget} {t("unit_kcal")}
               </div>
             </div>
             {items.length === 0 ? (
-              <div className="text-dim text-sm mt-2">Hozircha bo'sh</div>
+              <div className="text-dim text-sm mt-2">{t("food_empty")}</div>
             ) : (
               <ul className="mt-2 space-y-1">
                 {items.map((f) => (
@@ -57,13 +59,13 @@ export default function Food() {
                     </span>
                     <div className="flex items-center gap-3">
                       <span className="tnum text-dim">
-                        {Math.round((f.macros.kcal * f.portionPct) / 100)} kkal
+                        {Math.round((f.macros.kcal * f.portionPct) / 100)} {t("unit_kcal")}
                       </span>
                       <button
                         onClick={() => removeFood(f.id)}
                         className="text-burn text-xs"
                       >
-                        o'chirish
+                        {t("remove")}
                       </button>
                     </div>
                   </li>

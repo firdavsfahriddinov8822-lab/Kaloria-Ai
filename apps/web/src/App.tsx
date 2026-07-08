@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import {
   Home as HomeIcon,
@@ -8,6 +9,9 @@ import {
 } from "lucide-react";
 import { Toasts } from "@/components/ui";
 import { useApp } from "@/state/AppContext";
+import { useI18n } from "@/i18n";
+import { storageGet } from "@/lib/storage";
+import { isPinEnabled, isUnlocked, setUnlocked, subscribeLock } from "@/lib/security";
 import Setup from "@/screens/Setup";
 import Home from "@/screens/Home";
 import Food from "@/screens/Food";
@@ -17,19 +21,23 @@ import Session from "@/screens/Session";
 import Progress from "@/screens/Progress";
 import Settings from "@/screens/Settings";
 import Login from "@/screens/Login";
+import LanguagePick from "@/screens/LanguagePick";
+import PinSetup from "@/screens/PinSetup";
+import Lock from "@/screens/Lock";
 
 function TabBar() {
+  const { t } = useI18n();
   const tabs = [
-    { to: "/", labelUz: "Bosh", Icon: HomeIcon },
-    { to: "/food", labelUz: "Ovqat", Icon: UtensilsCrossed },
-    { to: "/workouts", labelUz: "Mashq", Icon: Dumbbell },
-    { to: "/progress", labelUz: "Progress", Icon: BarChart3 },
-    { to: "/settings", labelUz: "Sozlash", Icon: SettingsIcon },
+    { to: "/", labelKey: "tab_home" as const, Icon: HomeIcon },
+    { to: "/food", labelKey: "tab_food" as const, Icon: UtensilsCrossed },
+    { to: "/workouts", labelKey: "tab_workouts" as const, Icon: Dumbbell },
+    { to: "/progress", labelKey: "tab_progress" as const, Icon: BarChart3 },
+    { to: "/settings", labelKey: "tab_settings" as const, Icon: SettingsIcon },
   ];
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-elev border-t border-elev2 safe-bottom">
       <div className="max-w-md mx-auto grid grid-cols-5">
-        {tabs.map(({ to, labelUz, Icon }) => (
+        {tabs.map(({ to, labelKey, Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -41,7 +49,7 @@ function TabBar() {
             }
           >
             <Icon size={22} />
-            <span className="mt-0.5">{labelUz}</span>
+            <span className="mt-0.5">{t(labelKey)}</span>
           </NavLink>
         ))}
       </div>
@@ -52,22 +60,41 @@ function TabBar() {
 export default function App() {
   const { state } = useApp();
   const location = useLocation();
-  const showTabs =
-    !!state.profile &&
-    !["/setup", "/login"].includes(location.pathname);
+  const [unlocked, setUnlockedState] = useState(isUnlocked());
 
-  if (!state.user && !state.profile) {
-    if (location.pathname !== "/login" && location.pathname !== "/setup") {
-      return <Navigate to="/login" replace />;
-    }
+  useEffect(() => subscribeLock(setUnlockedState), []);
+
+  // On boot: if a PIN is set, boot locked. Otherwise auto-unlock.
+  useEffect(() => {
+    if (!isPinEnabled()) setUnlocked(true);
+  }, []);
+
+  const localePicked = storageGet<boolean>("locale:picked", false);
+  const publicPaths = ["/language", "/login", "/setup", "/pin-setup"];
+  const isPublic = publicPaths.includes(location.pathname);
+
+  if (!localePicked && location.pathname !== "/language") {
+    return <Navigate to="/language" replace />;
   }
+
+  if (isPinEnabled() && !unlocked && location.pathname !== "/language") {
+    return <Lock />;
+  }
+
+  if (!state.user && !state.profile && !isPublic) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const showTabs = !!state.profile && !isPublic;
 
   return (
     <div className="min-h-full pb-20 max-w-md mx-auto">
       <Toasts />
       <Routes>
+        <Route path="/language" element={<LanguagePick />} />
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="/pin-setup" element={<PinSetup />} />
         <Route
           path="/"
           element={state.profile ? <Home /> : <Navigate to="/setup" replace />}

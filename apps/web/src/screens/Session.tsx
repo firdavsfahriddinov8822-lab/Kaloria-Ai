@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EXERCISES, WORKOUT_PLANS } from "@kaloriya/shared";
 import { Btn, Card } from "@/components/ui";
+import { useI18n } from "@/i18n";
 import { useApp } from "@/state/AppContext";
 
 export default function Session() {
   const { planId } = useParams();
   const nav = useNavigate();
+  const { t } = useI18n();
   const { state, addWorkout, toast } = useApp();
   const [idx, setIdx] = useState(0);
 
@@ -24,7 +26,7 @@ export default function Session() {
     [plan],
   );
 
-  if (!plan) return <div className="p-4">Dastur topilmadi.</div>;
+  if (!plan) return <div className="p-4">{t("session_not_found")}</div>;
 
   const totalKcal = exercises.reduce(
     (s, e) => s + (e?.kcalPerSet ?? 0) * (e?.defaultSets ?? 0),
@@ -40,7 +42,7 @@ export default function Session() {
       durationMin: plan!.durationMin,
       createdAt: new Date().toISOString(),
     });
-    toast("Yakunlandi! Zo'r ish.", "success");
+    toast(t("session_finished"), "success");
     nav("/");
   }
 
@@ -52,7 +54,7 @@ export default function Session() {
         <div className="text-dim text-sm">
           {state.profile?.name} · {plan.nameUz}
         </div>
-        <div className="font-display text-2xl">
+        <div className="font-display text-2xl tnum">
           {idx + 1} / {exercises.length}
         </div>
       </header>
@@ -63,16 +65,19 @@ export default function Session() {
           <div className="text-dim text-sm">{cur.instructionsUz}</div>
           <div className="grid grid-cols-3 text-sm">
             <div>
-              <div className="text-dim">Set</div>
+              <div className="text-dim">{t("session_sets")}</div>
               <div className="tnum">{cur.defaultSets}</div>
             </div>
             <div>
-              <div className="text-dim">Reps</div>
+              <div className="text-dim">{t("session_reps")}</div>
               <div className="tnum">{cur.defaultReps}</div>
             </div>
             <div>
-              <div className="text-dim">Dam</div>
-              <div className="tnum">{cur.restSec}s</div>
+              <div className="text-dim">{t("session_rest")}</div>
+              <div className="tnum">
+                {cur.restSec}
+                {t("unit_sec")}
+              </div>
             </div>
           </div>
         </Card>
@@ -81,16 +86,16 @@ export default function Session() {
       <div className="flex gap-2">
         {idx > 0 && (
           <Btn variant="ghost" onClick={() => setIdx(idx - 1)} className="flex-1">
-            Oldingi
+            {t("previous")}
           </Btn>
         )}
         {idx < exercises.length - 1 ? (
           <Btn onClick={() => setIdx(idx + 1)} className="flex-1">
-            Keyingi
+            {t("next")}
           </Btn>
         ) : (
           <Btn onClick={finish} className="flex-1">
-            Yakunlash
+            {t("finish")}
           </Btn>
         )}
       </div>
