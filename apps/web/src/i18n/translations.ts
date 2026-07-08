@@ -213,6 +213,11 @@ const dict = {
   },
   addfood_ai_error: { uz: "AI xatolik", ru: "Ошибка AI", en: "AI error" },
   addfood_ai_note: { uz: "AI izohi", ru: "Совет AI", en: "AI note" },
+  addfood_not_food: {
+    uz: "Bu ovqat emas. Iltimos, ovqat rasmini oling.",
+    ru: "Это не еда. Пожалуйста, сфотографируйте блюдо.",
+    en: "This is not food. Please take a photo of a meal.",
+  },
 
   // Workouts
   workouts_title: { uz: "Mashqlar", ru: "Тренировки", en: "Workouts" },

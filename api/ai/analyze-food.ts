@@ -15,13 +15,26 @@ interface VercelRes {
 }
 
 const SYSTEM_PROMPT = `Sen o'zbek tilida javob beradigan ovqatlanish tahlilchisisan.
-Foydalanuvchi ovqat rasmini beradi. Sen JSON qaytarishing kerak:
+Foydalanuvchi istalgan rasmni yuborishi mumkin. Sen JSON qaytarishing kerak.
+
+Agar rasm OVQAT emas (odam, hayvon, uy jihozi, ekran, hujjat, tabiat va h.k.):
 {
+  "isFood": false,
+  "items": [],
+  "totals": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 },
+  "confidence": 0.0,
+  "notFoodReason": "Bir jumlalik izoh: rasmda nima ko'rinyapti (o'zbekcha)."
+}
+
+Agar rasm OVQAT bo'lsa:
+{
+  "isFood": true,
   "items": [{ "name": "...", "macros": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 }, "portionPctSuggested": 100, "reason": "..." }],
   "totals": { "kcal": 0, "protein_g": 0, "fat_g": 0, "carbs_g": 0, "sugar_g": 0, "salt_g": 0 },
   "confidence": 0.0,
   "noteUz": "Foydalanuvchiga bir jumlalik maslahat, o'zbek tilida."
 }
+
 Faqat JSON qaytar. Boshqa hech qanday matn qo'shma.`;
 
 function readBody(body: unknown): { imageBase64?: string; noteUz?: string } {
@@ -46,6 +59,7 @@ function stubAnalysis(): AiFoodAnalysis {
     salt_g: 1.2,
   };
   return {
+    isFood: true,
     items: [
       {
         name: "Namuna ovqat",
@@ -57,6 +71,18 @@ function stubAnalysis(): AiFoodAnalysis {
     totals: macros,
     confidence: 0.4,
     noteUz: "AI kaliti sozlanmagan. Vercel'da ANTHROPIC_API_KEY ni qo'shing.",
+  };
+}
+
+function normalizeAnalysis(parsed: unknown): AiFoodAnalysis {
+  const p = (parsed ?? {}) as Partial<AiFoodAnalysis>;
+  return {
+    isFood: p.isFood ?? true,
+    items: Array.isArray(p.items) ? p.items : [],
+    totals: p.totals ?? { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
+    confidence: typeof p.confidence === "number" ? p.confidence : 0,
+    noteUz: p.noteUz,
+    notFoodReason: p.notFoodReason,
   };
 }
 
@@ -129,7 +155,7 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("no text response");
     }
-    const parsed = JSON.parse(extractJson(textBlock.text)) as AiFoodAnalysis;
+    const parsed = normalizeAnalysis(JSON.parse(extractJson(textBlock.text)));
     res.status(200).json({ data: parsed });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown";

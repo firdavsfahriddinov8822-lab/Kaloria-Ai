@@ -76,9 +76,15 @@ export default function AddFood() {
       r.readAsDataURL(file);
     });
     setPhotoDataUrl(dataUrl);
+    setAnalysis(undefined);
     const base64 = dataUrl.split(",")[1] ?? "";
     try {
       const res = await analyzeFoodPhoto(base64);
+      if (!res.isFood) {
+        const reason = res.notFoodReason ? ` (${res.notFoodReason})` : "";
+        toast(t("addfood_not_food") + reason, "warn");
+        return;
+      }
       setAnalysis(res);
     } catch (e) {
       toast(e instanceof Error ? e.message : t("addfood_ai_error"), "error");

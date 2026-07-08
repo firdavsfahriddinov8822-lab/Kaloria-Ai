@@ -56,39 +56,71 @@ function today(): string {
 }
 
 function emptyDay(): DayLog {
+  return { date: today(), foods: [], water: [], workouts: [] };
+}
+
+const GUEST_UID = "_local";
+
+interface UserData {
+  uid: string;
+  profile?: Profile;
+  day: DayLog;
+  weights: WeightEntry[];
+}
+
+function loadUserData(uid: string): UserData {
   return {
-    date: today(),
-    foods: [],
-    water: [],
-    workouts: [],
+    uid,
+    profile: storageGet<Profile | undefined>(`u:${uid}:profile`, undefined),
+    day: storageGet<DayLog>(`u:${uid}:day`, emptyDay()),
+    weights: storageGet<WeightEntry[]>(`u:${uid}:weights`, []),
   };
 }
 
+function saveUserData(data: UserData): void {
+  storageSet(`u:${data.uid}:profile`, data.profile);
+  storageSet(`u:${data.uid}:day`, data.day);
+  storageSet(`u:${data.uid}:weights`, data.weights);
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | undefined>(
+  const [user, setUser] = useState<AuthUser | undefined>(() =>
     storageGet<AuthUser | undefined>("user", undefined),
   );
-  const [profile, setProfileState] = useState<Profile | undefined>(
-    storageGet<Profile | undefined>("profile", undefined),
-  );
-  const [day, setDay] = useState<DayLog>(storageGet<DayLog>("day", emptyDay()));
-  const [weights, setWeights] = useState<WeightEntry[]>(
-    storageGet<WeightEntry[]>("weights", []),
-  );
+  const uid = user?.id ?? GUEST_UID;
+
+  const [data, setData] = useState<UserData>(() => loadUserData(uid));
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // When the signed-in user changes, atomically reload their notebook so
+  // logging in as a different account never shows another user's data,
+  // and re-logging in restores what was saved for that account.
   useEffect(() => {
-    if (day.date !== today()) setDay(emptyDay());
-  }, [day.date]);
+    if (data.uid !== uid) setData(loadUserData(uid));
+  }, [uid, data.uid]);
 
-  useEffect(() => storageSet("user", user), [user]);
-  useEffect(() => storageSet("profile", profile), [profile]);
-  useEffect(() => storageSet("day", day), [day]);
-  useEffect(() => storageSet("weights", weights), [weights]);
+  // Roll over to a new day at midnight.
+  useEffect(() => {
+    if (data.day.date !== today()) {
+      setData((d) => ({ ...d, day: emptyDay() }));
+    }
+  }, [data.day.date]);
+
+  // Persist the device-level "last signed in" pointer.
+  useEffect(() => {
+    storageSet("user", user);
+  }, [user]);
+
+  // Persist per-user data, but only when data belongs to the current uid.
+  // Skips the transient render where uid changed but data still holds the
+  // previous user's values.
+  useEffect(() => {
+    if (data.uid === uid) saveUserData(data);
+  }, [uid, data]);
 
   const targets = useMemo(
-    () => (profile ? deriveTargets(profile) : undefined),
-    [profile],
+    () => (data.profile ? deriveTargets(data.profile) : undefined),
+    [data.profile],
   );
 
   const toast = useCallback((message: string, kind: Toast["kind"] = "info") => {
@@ -105,27 +137,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const setProfile = useCallback((p: Profile) => setProfileState(p), []);
+  const setProfile = useCallback(
+    (p: Profile) => setData((d) => ({ ...d, profile: p })),
+    [],
+  );
 
   const addFood = useCallback(
-    (f: FoodEntry) => setDay((d) => ({ ...d, foods: [...d.foods, f] })),
+    (f: FoodEntry) =>
+      setData((d) => ({ ...d, day: { ...d.day, foods: [...d.day.foods, f] } })),
     [],
   );
   const removeFood = useCallback(
     (id: string) =>
-      setDay((d) => ({ ...d, foods: d.foods.filter((f) => f.id !== id) })),
+      setData((d) => ({
+        ...d,
+        day: { ...d.day, foods: d.day.foods.filter((f) => f.id !== id) },
+      })),
     [],
   );
   const addWater = useCallback(
-    (w: WaterEntry) => setDay((d) => ({ ...d, water: [...d.water, w] })),
+    (w: WaterEntry) =>
+      setData((d) => ({ ...d, day: { ...d.day, water: [...d.day.water, w] } })),
     [],
   );
   const addWorkout = useCallback(
-    (w: WorkoutEntry) => setDay((d) => ({ ...d, workouts: [...d.workouts, w] })),
+    (w: WorkoutEntry) =>
+      setData((d) => ({
+        ...d,
+        day: { ...d.day, workouts: [...d.day.workouts, w] },
+      })),
     [],
   );
   const addWeight = useCallback(
-    (w: WeightEntry) => setWeights((prev) => [...prev, w]),
+    (w: WeightEntry) => setData((d) => ({ ...d, weights: [...d.weights, w] })),
     [],
   );
 
@@ -138,6 +182,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout();
     setUser(undefined);
+    // uid → GUEST_UID; the reload effect swaps `data` to the guest notebook,
+    // leaving the signed-out user's data untouched under `u:{uid}:*`.
   }, []);
 
   useEffect(() => {
@@ -147,7 +193,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   const value: AppApi = {
-    state: { user, profile, targets, today: day, weights, toasts },
+    state: {
+      user,
+      profile: data.profile,
+      targets,
+      today: data.day,
+      weights: data.weights,
+      toasts,
+    },
     setProfile,
     addFood,
     removeFood,

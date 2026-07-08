@@ -130,10 +130,12 @@ export interface AiAnalyzedItem {
 }
 
 export interface AiFoodAnalysis {
+  isFood: boolean;
   items: AiAnalyzedItem[];
   totals: Macros;
   confidence: number;
   noteUz?: string;
+  notFoodReason?: string;
 }
 
 export interface ApiError {
